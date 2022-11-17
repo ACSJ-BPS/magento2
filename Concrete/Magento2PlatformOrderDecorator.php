@@ -545,7 +545,7 @@ class Magento2PlatformOrderDecorator extends AbstractPlatformOrderDecorator
             $cleanDocument = preg_replace(
                 '/\D/',
                 '',
-                $address->getVatId()
+                $address->getCustomAttribute('casio_br_cpf')->getValue()
             );
         }
 
@@ -579,11 +579,11 @@ class Magento2PlatformOrderDecorator extends AbstractPlatformOrderDecorator
 
         $customer->setName($guestAddress->getName());
         $customer->setEmail($guestAddress->getEmail());
-
+        /* Adobe */
         $cleanDocument = preg_replace(
             '/\D/',
             '',
-            $guestAddress->getVatId()
+            $guestAddress->getCasioBrCpf()
         );
 
         if (empty($cleanDocument)) {
@@ -1167,7 +1167,7 @@ class Magento2PlatformOrderDecorator extends AbstractPlatformOrderDecorator
         $addressAttributes = json_decode(json_encode($addressAttributes), true);
         $allStreetLines = $platformAddress->getStreet();
 
-        $this->validateAddress($allStreetLines);
+        //$this->validateAddress($allStreetLines);
         $this->validateAddressConfiguration($addressAttributes);
 
         if (count($allStreetLines) < 4) {
@@ -1177,16 +1177,38 @@ class Magento2PlatformOrderDecorator extends AbstractPlatformOrderDecorator
 
         foreach ($addressAttributes as $attribute => $value) {
             $value = $value === null ? 1 : $value;
+            $setter = 'set' . ucfirst($attribute);
 
             $street = explode("_", $value);
             if (count($street) > 1) {
                 $value = intval($street[1]) - 1;
             }
 
-            $setter = 'set' . ucfirst($attribute);
-
             if (!isset($allStreetLines[$value])) {
-                $address->$setter('');
+                // Replace street value with custom attribute
+                try {
+                    if ($platformAddress->getCustomerId() === null) {
+                        $number = $platformShipping->getCasioBrNumber();
+                        $neighborhood = $platformShipping->getCasioBrNeighborhood();
+                        $complement = $platformShipping->getCasioBrComplement();
+                    } else {
+                        $number = $platformAddress->getCustomAttribute('casio_br_number')->getValue();
+                        $neighborhood = $platformAddress->getCustomAttribute('casio_br_neighborhood')->getValue();
+                        $complement = $platformAddress->getCustomAttribute('casio_br_complement')->getValue();
+                    }
+
+                    if ("number" === $attribute) {
+                        $address->$setter($number);
+                    } else if("neighborhood" === $attribute) {
+                        $address->$setter($neighborhood);
+                    }  else if('complement' === $attribute) {
+                        $address->$setter($complement);
+                    } else {
+                        $address->$setter('');
+                    }
+                } catch (\Throwable $e) {
+                }
+
                 continue;
             }
 
