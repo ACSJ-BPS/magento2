@@ -1,13 +1,13 @@
 {
     "name": "casio/pagarme-magento2-module",
     "license": "MIT",
-    "version": "1.1.9",
+    "version": "2.0.0",
     "type": "magento2-module",
     "description": "Magento 2 Module Pagar.me",
     "require": {
         "php": "~7.1",
         "casio/mundiapi": "3.0.1",
-        "casio/ecommerce-module-core": "1.1.4-v1"
+        "casio/ecommerce-module-core": "1.1.5"
     },
     "require-dev": {
         "phpunit/phpunit": "4.1.0",
