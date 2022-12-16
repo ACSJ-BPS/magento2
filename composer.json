@@ -4,20 +4,10 @@
     "version": "1.1.9",
     "type": "magento2-module",
     "description": "Magento 2 Module Pagar.me",
-    "repositories": {
-        "pagarme-ecommerce-module-core": {
-            "type": "git",
-            "url": "https://github.com/ACSJ-BPS/ecommerce-module-core.git"
-        },
-        "pagarme-mundiapi": {
-            "type": "git",
-            "url": "https://github.com/ACSJ-BPS/MundiAPI-PHP.git"
-        }
-    },
     "require": {
         "php": "~7.1",
-        "casio/mundiapi": "dev-casio-pagarme",
-        "casio/ecommerce-module-core": "dev-casio-pagarme"
+        "casio/mundiapi": "3.0.0-v1",
+        "casio/ecommerce-module-core": "1.1.4-v1"
     },
     "require-dev": {
         "phpunit/phpunit": "4.1.0",
