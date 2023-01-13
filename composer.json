@@ -29,7 +29,6 @@
             "name":"Open Source Team"
         }
     ],
-    "minimum-stability": "dev",
     "scripts": {
         "test": "phpunit"
     },
