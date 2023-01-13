@@ -635,9 +635,12 @@
         <plugin name="Pagarme_Pagarme_change_template" type="Pagarme\Pagarme\Plugin\Princing\Render\FinalPricePlugin" />
     </type>
 
+    <!-- Casio - Disable Plugin. Breaking Cart Page. -->
+    <!--
     <type name="\Magento\Checkout\Block\Cart\Item\Renderer">
         <plugin name="Pagarme_Pagarme_change_template_cycles" type="Pagarme\Pagarme\Plugin\Princing\Render\ProductPriceCyclesPlugin" />
     </type>
+    -->
     
     <!-- Recurrence -->
 
