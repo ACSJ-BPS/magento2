@@ -1188,9 +1188,9 @@ class Magento2PlatformOrderDecorator extends AbstractPlatformOrderDecorator
                 // Replace street value with custom attribute
                 try {
                     if ($platformAddress->getCustomerId() === null) {
-                        $number = $platformShipping->getCasioBrNumber();
-                        $neighborhood = $platformShipping->getCasioBrNeighborhood();
-                        $complement = $platformShipping->getCasioBrComplement();
+                        $number = $platformAddress->getCasioBrNumber();
+                        $neighborhood = $platformAddress->getCasioBrNeighborhood();
+                        $complement = $platformAddress->getCasioBrComplement();
                     } else {
                         $number = $platformAddress->getCustomAttribute('casio_br_number')->getValue();
                         $neighborhood = $platformAddress->getCustomAttribute('casio_br_neighborhood')->getValue();
