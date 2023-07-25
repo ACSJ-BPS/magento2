@@ -23,6 +23,7 @@ use Pagarme\Core\Kernel\ValueObjects\Id\OrderId;
 use Pagarme\Core\Kernel\ValueObjects\OrderState;
 use Pagarme\Core\Kernel\ValueObjects\OrderStatus;
 use Pagarme\Core\Kernel\ValueObjects\PaymentMethod;
+use Pagarme\Core\Marketplace\Aggregates\Split;
 use Pagarme\Core\Payment\Aggregates\Address;
 use Pagarme\Core\Payment\Aggregates\Customer;
 use Pagarme\Core\Payment\Aggregates\Item;
@@ -53,6 +54,7 @@ use Magento\Sales\Model\ResourceModel\Order\Status\Collection;
 use Pagarme\Core\Kernel\Aggregates\Transaction;
 use Pagarme\Core\Kernel\ValueObjects\TransactionType;
 use Magento\Quote\Model\Quote;
+use Pagarme\Pagarme\Helper\Marketplace\WebkulHelper;
 
 class Magento2PlatformOrderDecorator extends AbstractPlatformOrderDecorator
 {
@@ -102,7 +104,7 @@ class Magento2PlatformOrderDecorator extends AbstractPlatformOrderDecorator
      */
     public function getState()
     {
-        $baseState = explode('_', $this->getPlatformOrder()->getState());
+        $baseState = explode('_', $this->getPlatformOrder()->getState() ?? '');
         $state = '';
         foreach ($baseState as $st) {
             $state .= ucfirst($st);
@@ -232,7 +234,8 @@ class Magento2PlatformOrderDecorator extends AbstractPlatformOrderDecorator
     /**
      * @param Charge[] $charges
      */
-    public function addAdditionalInformation(array $charges) {
+    public function addAdditionalInformation(array $charges)
+    {
         $chargesAddtionalInformation = $this->extractAdditionalChargeInformation(
             $charges
         );
@@ -530,26 +533,22 @@ class Magento2PlatformOrderDecorator extends AbstractPlatformOrderDecorator
             $quote->getCustomerLastname(),
         ]);
 
-        $fullName = preg_replace("/  /", " ", $fullName);
+        if ($fullName && !is_null($fullName)) {
+            $fullName = preg_replace("/  /", " ", $fullName);
+        }
 
         $customer->setName($fullName);
         $customer->setEmail($quote->getCustomerEmail());
-
-        $cleanDocument = preg_replace(
-            '/\D/',
-            '',
-            $quote->getCustomer()->getTaxVat()
+        $customerDocument = $this->cleanCustomerDocument(
+            $address->getVatId() ?? ""
         );
 
-        if (empty($cleanDocument)) {
-            $cleanDocument = preg_replace(
-                '/\D/',
-                '',
-                $address->getCustomAttribute('casio_br_cpf')->getValue()
+        if (!$customerDocument) {
+            $customerDocument = $this->cleanCustomerDocument(
+                $quote->getCustomer()->getTaxVat() ?? ""
             );
         }
-
-        $customer->setDocument($cleanDocument);
+        $customer->setDocument($customerDocument);
         $customer->setType(CustomerType::individual());
 
         $telephone = $address->getTelephone();
@@ -567,6 +566,22 @@ class Magento2PlatformOrderDecorator extends AbstractPlatformOrderDecorator
     }
 
     /**
+     * @param string $document
+     * @return array|string|string[]|null
+     */
+    public function cleanCustomerDocument(string $document)
+    {
+        if(is_null($document)) {
+            return '';
+        }
+        return preg_replace(
+            '/\D/',
+            '',
+            $document
+        );
+    }
+
+    /**
      * @param Quote $quote
      * @return Customer
      * @throws \Exception
@@ -579,22 +594,18 @@ class Magento2PlatformOrderDecorator extends AbstractPlatformOrderDecorator
 
         $customer->setName($guestAddress->getName());
         $customer->setEmail($guestAddress->getEmail());
-        /* Adobe */
-        $cleanDocument = preg_replace(
-            '/\D/',
-            '',
-            $guestAddress->getCasioBrCpf()
-        );
 
-        if (empty($cleanDocument)) {
-            $cleanDocument = preg_replace(
-                '/\D/',
-                '',
-                $quote->getCustomerTaxvat()
-            );
+        $customerDocument = $guestAddress->getVatId();
+
+        if (!$customerDocument) {
+            $customerDocument = $quote->getCustomerTaxvat();
         }
 
-        $customer->setDocument($cleanDocument);
+        if (!is_null($customerDocument)) {
+            $customerDocument = $this->cleanCustomerDocument($customerDocument);
+        }
+
+        $customer->setDocument($customerDocument);
         $customer->setType(CustomerType::individual());
 
         $telephone = $guestAddress->getTelephone();
@@ -648,7 +659,7 @@ class Magento2PlatformOrderDecorator extends AbstractPlatformOrderDecorator
             $item->setQuantity($quoteItem->getQty());
             $item->setDescription(
                 $quoteItem->getName() . ' : ' .
-                $quoteItem->getDescription()
+                    $quoteItem->getDescription()
             );
 
             $item->setName($quoteItem->getName());
@@ -729,7 +740,7 @@ class Magento2PlatformOrderDecorator extends AbstractPlatformOrderDecorator
         $paymentData = [];
 
         foreach ($payments as $payment) {
-            $handler = explode('_', $payment['method']);
+            $handler = explode('_', $payment['method'] ?? '');
             array_walk($handler, function (&$part) {
                 $part = ucfirst($part);
             });
@@ -748,13 +759,11 @@ class Magento2PlatformOrderDecorator extends AbstractPlatformOrderDecorator
         return $paymentMethods;
     }
 
-    private function extractPaymentDataFromPagarmeCreditCard
-    (
+    private function extractPaymentDataFromPagarmeCreditCard(
         $additionalInformation,
         &$paymentData,
         $payment
-    )
-    {
+    ) {
         $newPaymentData = $this->extractBasePaymentData(
             $additionalInformation
         );
@@ -766,13 +775,11 @@ class Magento2PlatformOrderDecorator extends AbstractPlatformOrderDecorator
         $paymentData[$creditCardDataIndex][] = $newPaymentData;
     }
 
-    private function extractPaymentDataFromPagarmeVoucher
-    (
+    private function extractPaymentDataFromPagarmeVoucher(
         $additionalInformation,
         &$paymentData,
         $payment
-    )
-    {
+    ) {
         $newPaymentData = $this->extractBasePaymentData(
             $additionalInformation
         );
@@ -784,13 +791,11 @@ class Magento2PlatformOrderDecorator extends AbstractPlatformOrderDecorator
         $paymentData[$creditCardDataIndex][] = $newPaymentData;
     }
 
-    private function extractPaymentDataFromPagarmeDebit
-    (
+    private function extractPaymentDataFromPagarmeDebit(
         $additionalInformation,
         &$paymentData,
         $payment
-    )
-    {
+    ) {
         $newPaymentData = $this->extractBasePaymentData(
             $additionalInformation
         );
@@ -852,8 +857,8 @@ class Magento2PlatformOrderDecorator extends AbstractPlatformOrderDecorator
 
         $amount = $this->getGrandTotal() - $this->getBaseTaxAmount();
         $amount = number_format($amount, 2, '.', '');
-        $amount = str_replace('.', '', $amount);
-        $amount = str_replace(',', '', $amount);
+        $amount = str_replace('.', '', $amount ?? '');
+        $amount = str_replace(',', '', $amount ?? '');
 
         $newPaymentData->amount = $amount;
 
@@ -867,8 +872,7 @@ class Magento2PlatformOrderDecorator extends AbstractPlatformOrderDecorator
         return $newPaymentData;
     }
 
-    private function extractPaymentDataFromPagarmeTwoCreditCard
-    ($additionalInformation, &$paymentData, $payment)
+    private function extractPaymentDataFromPagarmeTwoCreditCard($additionalInformation, &$paymentData, $payment)
     {
         $moneyService = new MoneyService();
         $indexes = ['first', 'second'];
@@ -880,7 +884,6 @@ class Magento2PlatformOrderDecorator extends AbstractPlatformOrderDecorator
             try {
                 $brand = strtolower($additionalInformation["cc_type_{$index}"]);
             } catch (\Throwable $e) {
-
             }
 
             if (isset($additionalInformation["cc_token_credit_card_{$index}"])) {
@@ -936,8 +939,7 @@ class Magento2PlatformOrderDecorator extends AbstractPlatformOrderDecorator
         $prefix,
         $additionalInformation,
         $index = null
-    )
-    {
+    ) {
         $index = $index !== null ? '_' . $index : null;
 
         if (
@@ -967,7 +969,7 @@ class Magento2PlatformOrderDecorator extends AbstractPlatformOrderDecorator
         foreach ($fields as $key => $attribute) {
             $value = $additionalInformation[$key];
 
-            if ($attribute === 'document' || $attribute === 'zipCode') {
+            if (($attribute === 'document' || $attribute === 'zipCode') && !is_null($value)) {
                 $value = preg_replace(
                     '/\D/',
                     '',
@@ -983,9 +985,9 @@ class Magento2PlatformOrderDecorator extends AbstractPlatformOrderDecorator
 
     private function extractPaymentDataFromPagarmeBilletCreditcard(
         $additionalInformation,
-        &$paymentData, $payment
-    )
-    {
+        &$paymentData,
+        $payment
+    ) {
         $moneyService = new MoneyService();
         $identifier = null;
         $customerId = null;
@@ -994,7 +996,6 @@ class Magento2PlatformOrderDecorator extends AbstractPlatformOrderDecorator
         try {
             $brand = strtolower($additionalInformation['cc_type']);
         } catch (\Throwable $e) {
-
         }
 
         if (isset($additionalInformation['cc_token_credit_card'])) {
@@ -1031,7 +1032,7 @@ class Magento2PlatformOrderDecorator extends AbstractPlatformOrderDecorator
         $amount = str_replace(
             ['.', ','],
             "",
-            $additionalInformation["cc_cc_amount"]
+            $additionalInformation["cc_cc_amount"] ?? ''
         );
         $newPaymentData->amount = $moneyService->floatToCents($amount / 100);
 
@@ -1054,7 +1055,7 @@ class Magento2PlatformOrderDecorator extends AbstractPlatformOrderDecorator
         $amount = str_replace(
             ['.', ','],
             "",
-            $additionalInformation["cc_billet_amount"]
+            $additionalInformation["cc_billet_amount"] ?? ''
         );
 
         $newPaymentData->amount =
@@ -1077,8 +1078,7 @@ class Magento2PlatformOrderDecorator extends AbstractPlatformOrderDecorator
         $additionalInformation,
         &$paymentData,
         $payment
-    )
-    {
+    ) {
         $moneyService = new MoneyService();
         $newPaymentData = new \stdClass();
         $newPaymentData->amount =
@@ -1103,8 +1103,7 @@ class Magento2PlatformOrderDecorator extends AbstractPlatformOrderDecorator
         $additionalInformation,
         &$paymentData,
         $payment
-    )
-    {
+    ) {
         $moneyService = new MoneyService();
         $newPaymentData = new \stdClass();
         $newPaymentData->amount =
@@ -1167,7 +1166,7 @@ class Magento2PlatformOrderDecorator extends AbstractPlatformOrderDecorator
         $addressAttributes = json_decode(json_encode($addressAttributes), true);
         $allStreetLines = $platformAddress->getStreet();
 
-        //$this->validateAddress($allStreetLines);
+        $this->validateAddress($allStreetLines);
         $this->validateAddressConfiguration($addressAttributes);
 
         if (count($allStreetLines) < 4) {
@@ -1177,38 +1176,16 @@ class Magento2PlatformOrderDecorator extends AbstractPlatformOrderDecorator
 
         foreach ($addressAttributes as $attribute => $value) {
             $value = $value === null ? 1 : $value;
-            $setter = 'set' . ucfirst($attribute);
 
-            $street = explode("_", $value);
+            $street = explode("_", $value ?? '');
             if (count($street) > 1) {
                 $value = intval($street[1]) - 1;
             }
 
+            $setter = 'set' . ucfirst($attribute);
+
             if (!isset($allStreetLines[$value])) {
-                // Replace street value with custom attribute
-                try {
-                    if ($platformAddress->getCustomerId() === null) {
-                        $number = $platformAddress->getCasioBrNumber();
-                        $neighborhood = $platformAddress->getCasioBrNeighborhood();
-                        $complement = $platformAddress->getCasioBrComplement();
-                    } else {
-                        $number = $platformAddress->getCustomAttribute('casio_br_number')->getValue();
-                        $neighborhood = $platformAddress->getCustomAttribute('casio_br_neighborhood')->getValue();
-                        $complement = $platformAddress->getCustomAttribute('casio_br_complement')->getValue();
-                    }
-
-                    if ("number" === $attribute) {
-                        $address->$setter($number);
-                    } else if("neighborhood" === $attribute) {
-                        $address->$setter($neighborhood);
-                    }  else if('complement' === $attribute) {
-                        $address->$setter($complement);
-                    } else {
-                        $address->$setter('');
-                    }
-                } catch (\Throwable $e) {
-                }
-
+                $address->$setter('');
                 continue;
             }
 
@@ -1270,4 +1247,24 @@ class Magento2PlatformOrderDecorator extends AbstractPlatformOrderDecorator
         return $this->platformOrder->getTotalCanceled();
     }
 
+    public function handleSplitOrder()
+    {
+        $webkullHelper = new WebkulHelper();
+
+        if (!$webkullHelper->isEnabled()) {
+            return null;
+        }
+
+        $splitDataFromOrder = $webkullHelper->getSplitDataFromOrder($this);
+
+        if (!$splitDataFromOrder) {
+            return null;
+        }
+
+        $splitData = new Split();
+        $splitData->setSellersData($splitDataFromOrder['sellers']);
+        $splitData->setMarketplaceData($splitDataFromOrder['marketplace']);
+
+        return $splitData;
+    }
 }

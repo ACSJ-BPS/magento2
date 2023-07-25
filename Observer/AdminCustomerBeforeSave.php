@@ -12,6 +12,8 @@ use Pagarme\Pagarme\Helper\CustomerUpdatePagarmeHelper;
 use Pagarme\Pagarme\Model\PagarmeConfigProvider;
 use Magento\Framework\App\ObjectManager;
 use Magento\Framework\Exception\InputException;
+use Pagarme\Core\Payment\ValueObjects\CustomerPhones;
+use Pagarme\Core\Payment\ValueObjects\Phone;
 
 class AdminCustomerBeforeSave implements ObserverInterface
 {
@@ -44,14 +46,20 @@ class AdminCustomerBeforeSave implements ObserverInterface
         }
 
         $event = $observer->getEvent();
-        $platformCustomer = new Magento2PlatformCustomerDecorator($event->getCustomer());
+        
+        if (!$this->canUpdateOnPagarme($event)) {
+            return $this;
+        }
 
+        $customer = $event->getCustomer();
+        $customer->setData('phones', $this->getPhoneNumbers($event->getRequest()));
+        $platformCustomer = new Magento2PlatformCustomerDecorator($customer);
         $customerService = new CustomerService();
         try {
             $customerService->updateCustomerAtPagarme($platformCustomer);
         } catch (\Exception $exception) {
             $log = new LogService('CustomerService');
-            $log->info($exception->getResponseBody());
+            $log->info($exception->getMessage());
 
             if ($exception->getCode() == 404) {
                 $log->info(
@@ -76,5 +84,28 @@ class AdminCustomerBeforeSave implements ObserverInterface
         $pagarmeProvider = $objectManager->get(PagarmeConfigProvider::class);
 
         return $pagarmeProvider->getModuleStatus();
+    }
+
+    private function canUpdateOnPagarme ($event) 
+    {
+        $request = $event->getRequest();
+        $platformCustomer = new Magento2PlatformCustomerDecorator($event->getCustomer());
+        if (empty($platformCustomer->getPagarmeId())) {
+            return false;
+        }
+        if (empty($request->getParam('default_shipping_address')) && empty($request->getParam('default_billing_address'))) {
+            return false;
+        }
+        return true;
+    }
+
+    private function getPhoneNumbers($request)
+    {
+        $shippingPhone = $request->getParam('default_shipping_address')['telephone'];
+        $billingPhone = $request->getParam('default_billing_address')['telephone'];
+        $shippingPhone = new Phone($shippingPhone);
+        $billingPhone = new Phone($billingPhone);
+        $phonesArray = [$shippingPhone, $billingPhone];
+        return CustomerPhones::create($phonesArray);
     }
 }

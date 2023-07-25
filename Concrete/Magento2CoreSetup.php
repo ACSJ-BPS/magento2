@@ -29,6 +29,7 @@ use Pagarme\Pagarme\Concrete\Magento2PlatformCreditmemoDecorator;
 use Pagarme\Pagarme\Concrete\Magento2DataService;
 use Pagarme\Pagarme\Concrete\Magento2PlatformPaymentMethodDecorator;
 use Pagarme\Pagarme\Concrete\Magento2PlatformProductDecorator;
+use Pagarme\Pagarme\Model\ConfigNotification;
 use Magento\Store\Model\StoreManagerInterface;
 use Magento\Store\Model\Website\Interceptor;
 use stdClass;
@@ -126,20 +127,21 @@ final class Magento2CoreSetup extends AbstractModuleCoreSetup
      */
     public function loadModuleConfigurationFromPlatform($storeConfig = null)
     {
-        $objectManager = ObjectManager::getInstance();
+        try {
+            $objectManager = ObjectManager::getInstance();
 
-        if ($storeConfig == null) {
-            $storeConfig = $objectManager->get(Magento2StoreConfig::class);
-        }
+            if ($storeConfig == null) {
+                $storeConfig = $objectManager->get(Magento2StoreConfig::class);
+            }
 
-        $configData = new \stdClass();
+            $configData = new \stdClass();
 
-        $storeId = self::getCurrentStoreId();
+            $storeId = self::getCurrentStoreId();
 
-        if (!self::checkWebSiteExists($storeId)) {
-            self::$moduleConfig = new Configuration();
-            return;
-        }
+            if (!self::checkWebSiteExists($storeId)) {
+                self::$moduleConfig = new Configuration();
+                return;
+            }
 
         self::fillWithGeneralConfig($configData, $storeConfig);
         self::fillWithPagarmeKeys($configData, $storeConfig);
@@ -154,14 +156,21 @@ final class Magento2CoreSetup extends AbstractModuleCoreSetup
         self::fillWithMultiBuyerConfig($configData, $storeConfig);
         self::fillWithRecurrenceConfig($configData, $storeConfig);
         self::fillWithHubConfig($configData, $storeConfig);
+        self::fillWithMarketplaceConfig($configData, $storeConfig);
 
-        $configurationFactory = new ConfigurationFactory();
-        $config = $configurationFactory->createFromJsonData(
-            json_encode($configData)
-        );
+            $configurationFactory = new ConfigurationFactory();
+            $config = $configurationFactory->createFromJsonData(
+                json_encode($configData)
+            );
 
-        self::$moduleConfig = $config;
-        self::$instance->setApiBaseUrl();
+            self::$moduleConfig = $config;
+            self::$instance->setApiBaseUrl();
+
+        } catch (\Throwable $error) {
+            $configErrorNotify = new ConfigNotification();
+            $configErrorNotify->addNotify($error);
+        }
+        
     }
 
     /**
@@ -426,20 +435,20 @@ final class Magento2CoreSetup extends AbstractModuleCoreSetup
 
         $scope = ScopeInterface::SCOPE_WEBSITES;
         $storeId = self::getCurrentStoreId();
-
+        $selectedBrands = $storeConfig->getValue($section .  'cctypes', $scope, $storeId) ?? '';
         $brands = array_merge([''], explode(
             ',',
-            $storeConfig->getValue($section .  'cctypes', $scope, $storeId)
+            $selectedBrands
         ));
 
         $cardConfigs = [];
         foreach ($brands as $brand) {
             $brand = "_" . strtolower($brand);
-            $brandMethod = str_replace('_', '', $brand);
+            $brandMethod = str_replace('_', '', $brand ?? '');
             $adapted = self::getBrandAdapter(strtoupper($brandMethod));
             if ($adapted !== false) {
                 $brand = "_" . strtolower($adapted);
-                $brandMethod = str_replace('_', '', $brand);
+                $brandMethod = str_replace('_', '', $brand ?? '');
             }
 
             if ($brandMethod == '') {
@@ -468,11 +477,11 @@ final class Magento2CoreSetup extends AbstractModuleCoreSetup
             $cardConfigs[] = new CardConfig(
                 true,
                 CardBrand::$brandMethod(),
-                ($max !== null ? $max : 1),
-                ($maxWithout !== null ? $maxWithout : 1),
+                (($max !== null && $max !== "") ? $max : 1),
+                (($maxWithout !== null && $maxWithout !== "") ? $maxWithout : 1),
                 $initial,
                 $incremental,
-                ($minValue !== null ? $minValue : 0) * 100
+                (($minValue !== null && $minValue !== "") ? $minValue : 0) * 100
             );
         }
         return $cardConfigs;
@@ -600,5 +609,30 @@ final class Magento2CoreSetup extends AbstractModuleCoreSetup
             $recurrenceConfig,
             $section
         );
+    }
+
+    static private function fillWithMarketplaceConfig(
+        stdClass $configData,
+        ScopeConfigInterface $storeConfig
+    ) {
+        $options = [
+            'enabled' => 'active',
+            'responsibilityForProcessingFees'
+            => 'responsibility_for_processing_fees',
+            'responsibilityForChargebacks'
+            => 'responsibility_for_chargebacks',
+            'responsibilityForReceivingSplitRemainder'
+            => 'responsibility_for_receiving_split_remainder',
+            'responsibilityForReceivingExtrasAndDiscounts'
+            => 'responsibility_for_receiving_extras_and_discounts',
+            'mainRecipientId'
+            => 'main_recipient_id',
+        ];
+
+        $section = 'pagarme_pagarme/marketplace/';
+
+        $marketplaceObject = new \stdClass();
+
+        $configData->marketplaceConfig = self::fillDataObj($storeConfig, $options, $marketplaceObject, $section);
     }
 }

@@ -87,7 +87,7 @@ class Magento2PlatformInvoiceDecorator extends AbstractInvoiceDecorator implemen
         $objectManager = ObjectManager::getInstance();
         $invoiceSender = $objectManager->get(InvoiceSender::class);
         $logService->info("Sending invoice #{$this->getIncrementId()}");
-        //$invoiceSender->send($this->platformInvoice);
+        $invoiceSender->send($this->platformInvoice);
         $logService->info("Invoice sent #{$this->getIncrementId()}");
     }
 
@@ -155,13 +155,7 @@ class Magento2PlatformInvoiceDecorator extends AbstractInvoiceDecorator implemen
         return $invoice;
     }
 
-    /**
-     * Specify data which should be serialized to JSON
-     * @link https://php.net/manual/en/jsonserializable.jsonserialize.php
-     * @return mixed data which can be serialized by <b>json_encode</b>,
-     * which is a value of any type other than a resource.
-     * @since 5.4.0
-     */
+    #[\ReturnTypeWillChange]
     public function jsonSerialize()
     {
         return $this->platformInvoice->getData();

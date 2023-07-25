@@ -16,6 +16,14 @@ namespace Pagarme\Pagarme\Gateway\Transaction\Base\Config;
 class Config extends AbstractConfig implements ConfigInterface
 {
     /**
+     * @return bool
+     */
+    public function isEnabled()
+    {
+        return $this->getConfig(static::PATH_ENABLED);
+    }
+    
+    /**
      * @return string
      */
     public function getSecretKey()
@@ -63,8 +71,8 @@ class Config extends AbstractConfig implements ConfigInterface
     public function isSandboxMode(): bool
     {
         return ( $this->getHubEnvironment() === static::HUB_SANDBOX_ENVIRONMENT ||
-            strpos($this->getSecretKey(), 'sk_test') !== false ||
-            strpos($this->getPublicKey(), 'pk_test') !== false
+            strpos($this->getSecretKey() ?? '', 'sk_test') !== false ||
+            strpos($this->getPublicKey() ?? '', 'pk_test') !== false
         );
     }
 
@@ -132,5 +140,18 @@ class Config extends AbstractConfig implements ConfigInterface
         }
 
         return false;
+    }
+
+    /**
+     * @return array
+     */
+    public function getPagarmeCustomerConfigs()
+    {
+        $customerConfigs = [
+            'showVatNumber' => $this->getConfig(static::PATH_CUSTOMER_VAT_NUMBER) ?? '',
+            'streetLinesNumber' => $this->getConfig(static::PATH_CUSTOMER_ADDRESS_LINES) ?? '',
+        ];
+
+        return $customerConfigs;
     }
 }

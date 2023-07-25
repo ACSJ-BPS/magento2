@@ -4,7 +4,10 @@
  * @var \Pagarme\Core\Kernel\Aggregates\Transaction $lastTransaction
  */
 $lastTransactions = $this->getTransactionInfo();
-$postDataBillet = (json_decode($lastTransactions['billet']->getPostData()->tran_data, true));
+$postDataBillet = null;
+if (array_key_exists('billet', $lastTransactions)) {
+    $postDataBillet = (json_decode($lastTransactions['billet']->getPostData()->tran_data, true));
+}
 ?>
 <?php if ($this->getCcType()): ?>
     <span><?php echo __($this->getTitle()); ?></span>
@@ -32,7 +35,9 @@ $postDataBillet = (json_decode($lastTransactions['billet']->getPostData()->tran_
         <span><b><?= __('NSU from capture'); ?>: </b><?= $lastTransactions['creditCard']['captured'] ?></span>
         <br/>
     <?php } ?>
-    <span><b><?= __('TID'); ?>: </b><?= $lastTransactions['creditCard']['tid'] ?></span>
+    <?php if (!empty($lastTransactions['creditCard']['tid'])) {?>
+        <span><b><?= __('TID'); ?>: </b><?= $lastTransactions['creditCard']['tid'] ?></span>
+    <?php } ?>
 <?php endif ?>
 
     <br/>
@@ -57,7 +62,7 @@ $postDataBillet = (json_decode($lastTransactions['billet']->getPostData()->tran_
     <br/>
 <?php } ?>
 
-<?php if ($this->getBilletUrl() && $this->getInfo()->getOrder()->getState() == 'pending_payment'): ?>
+<?php if ($this->getBilletUrl() && $this->getInfo()->getOrder()->getState() == 'new'): ?>
     <span><b><?php echo __('Amount') ?>: </b><?php echo 'R$ ' . number_format($this->getBilletAmount(), 2, ',', '.'); ?></span>
     <br/>
     <br/>
