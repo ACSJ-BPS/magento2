@@ -6,7 +6,6 @@
     "description": "Magento 2 Module Pagar.me",
     "require": {
         "php": ">=7.1",
-        "casio/mundiapi": "dev-2.4.5-P1-Upgrade",
         "casio/ecommerce-module-core": "dev-2.4.5-P1-Upgrade"
     },
     "require-dev": {
