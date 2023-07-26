@@ -540,7 +540,7 @@ class Magento2PlatformOrderDecorator extends AbstractPlatformOrderDecorator
         $customer->setName($fullName);
         $customer->setEmail($quote->getCustomerEmail());
         $customerDocument = $this->cleanCustomerDocument(
-            $address->getVatId() ?? ""
+            $address->getCustomAttribute('casio_br_cpf')->getValue() ?? ""
         );
 
         if (!$customerDocument) {
@@ -595,7 +595,7 @@ class Magento2PlatformOrderDecorator extends AbstractPlatformOrderDecorator
         $customer->setName($guestAddress->getName());
         $customer->setEmail($guestAddress->getEmail());
 
-        $customerDocument = $guestAddress->getVatId();
+        $customerDocument = $guestAddress->getCasioBrCpf();
 
         if (!$customerDocument) {
             $customerDocument = $quote->getCustomerTaxvat();
@@ -1185,7 +1185,30 @@ class Magento2PlatformOrderDecorator extends AbstractPlatformOrderDecorator
             $setter = 'set' . ucfirst($attribute);
 
             if (!isset($allStreetLines[$value])) {
-                $address->$setter('');
+                // Replace street value with custom attribute
+                try {
+                    if ($platformAddress->getCustomerId() === null) {
+                        $number = $platformAddress->getCasioBrNumber();
+                        $neighborhood = $platformAddress->getCasioBrNeighborhood();
+                        $complement = $platformAddress->getCasioBrComplement();
+                    } else {
+                        $number = $platformAddress->getCustomAttribute('casio_br_number')->getValue();
+                        $neighborhood = $platformAddress->getCustomAttribute('casio_br_neighborhood')->getValue();
+                        $complement = $platformAddress->getCustomAttribute('casio_br_complement')->getValue();
+                    }
+
+                    if ("number" === $attribute) {
+                        $address->$setter($number);
+                    } else if("neighborhood" === $attribute) {
+                        $address->$setter($neighborhood);
+                    }  else if('complement' === $attribute) {
+                        $address->$setter($complement);
+                    } else {
+                        $address->$setter('');
+                    }
+                } catch (\Throwable $e) {
+                }
+
                 continue;
             }
 
