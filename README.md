@@ -1,3 +1,5 @@
+# Deprecated - Use https://github.com/ACSJ-BPS/casio-pagarme-magento2
+
 # Module in development
 ## If you want to use this module please contact us through comercial@pagar.me for more information.
 
